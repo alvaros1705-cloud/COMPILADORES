@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador Léxico</title>
+    <style>
+        /* Paleta de colores vibrante y moderna */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #f1f5f9 100%);
+            --card-bg: #ffffff;
+            --primary: #0f172a;
+            --accent: #4f46e5;
+            --border: #e2e8f0;
+            
+            /* Colores temáticos por Token */
+            --keyword-bg: #ffe4e6;     --keyword-color: #e11d48;     --keyword-border: #fca5a5;
+            --number-bg: #e0f2fe;      --number-color: #0369a1;      --number-border: #7dd3fc;
+            --identifier-bg: #dcfce7;  --identifier-color: #15803d;  --identifier-border: #86efac;
+            --operator-bg: #f3e8ff;    --operator-color: #7e22ce;    --operator-border: #c084fc;
+            --delimiter-bg: #fef3c7;   --delimiter-color: #b45309;   --delimiter-border: #fde047;
+            --error-bg: #fee2e2;       --error-color: #b91c1c;       --error-border: #fca5a5;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-gradient);
+            color: #334155;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 950px;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin: 0 0 8px 0;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -0.75px;
+            background: linear-gradient(to right, #4f46e5, #9333ea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 35px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 35px;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; gap: 20px; }
+        }
+
+        label {
+            font-weight: 700;
+            display: block;
+            margin-bottom: 12px;
+            color: #475569;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Caja de código fuente compacta y pequeña */
+        textarea {
+            width: 100%;
+            height: 160px;
+            padding: 16px;
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            box-sizing: border-box;
+            outline: none;
+            background-color: #f8fafc;
+            transition: all 0.3s ease;
+            color: #0f172a;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+            background-color: #ffffff;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+        }
+
+        /* Caja de tokens identificados SIGNIFICATIVAMENTE MÁS GRANDE */
+        .table-container {
+            height: 320px; 
+            overflow-y: auto;
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            background: #ffffff;
+            box-sizing: border-box;
+            padding: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 6px;
+        }
+
+        th {
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 12px;
+            background-color: #ffffff;
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 10px 14px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        /* Estilo interactivo de filas tipo tarjetas de colores */
+        tr td:first-child { border-top-left-radius: 10px; border-bottom-left-radius: 10px; border-left: 3px solid transparent; }
+        tr td:last-child { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+
+        .row-keyword { background: var(--keyword-bg); color: var(--keyword-color); }
+        .row-keyword td:first-child { border-left-color: var(--keyword-color); }
+        .row-keyword:hover { box-shadow: 0 4px 12px rgba(225, 29, 72, 0.15); }
+
+        .row-number { background: var(--number-bg); color: var(--number-color); }
+        .row-number td:first-child { border-left-color: var(--number-color); }
+        .row-number:hover { box-shadow: 0 4px 12px rgba(3, 105, 161, 0.15); }
+
+        .row-identifier { background: var(--identifier-bg); color: var(--identifier-color); }
+        .row-identifier td:first-child { border-left-color: var(--identifier-color); }
+        .row-identifier:hover { box-shadow: 0 4px 12px rgba(21, 128, 61, 0.15); }
+
+        .row-operator { background: var(--operator-bg); color: var(--operator-color); }
+        .row-operator td:first-child { border-left-color: var(--operator-color); }
+        .row-operator:hover { box-shadow: 0 4px 12px rgba(126, 34, 206, 0.15); }
+
+        .row-delimiter { background: var(--delimiter-bg); color: var(--delimiter-color); }
+        .row-delimiter td:first-child { border-left-color: var(--delimiter-color); }
+        .row-delimiter:hover { box-shadow: 0 4px 12px rgba(180, 83, 9, 0.15); }
+
+        .row-error { background: var(--error-bg); color: var(--error-color); font-weight: 600; animation: shake 0.4s ease; }
+        .row-error td:first-child { border-left-color: var(--error-color); }
+
+        .badge-text {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.6);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 13.5px;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        /* Scrollbar track */
+        .table-container::-webkit-scrollbar { width: 6px; }
+        .table-container::-webkit-scrollbar-track { background: transparent; }
+        .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Analizador Léxico</h1>
+    <div class="subtitle">Escribe código en tiempo real y experimenta la detección cromática de tokens</div>
+
+    <div class="grid">
+        <div>
+            <label for="inputCodigo">Código Fuente</label>
+            <textarea id="inputCodigo" placeholder="Prueba ingresando: if (total = 100.5) { return x; }"></textarea>
+        </div>
+
+        <div>
+            <label>Tokens Identificados</label>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Componente</th>
+                            <th>Lexema</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaTokens">
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: #94a3b8; padding-top: 110px; font-weight: 500;">Esperando código fuente...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const TOKEN_RULES = [
+        { type: 'KEYWORD',    regex: /^(if|else|while|return)\b/ },
+        { type: 'NUMBER',     regex: /^\d+(\.\d+)?/ },
+        { type: 'IDENTIFIER', regex: /^[a-zA-Z_][a-zA-Z0-9_]*/ },
+        { type: 'OPERATOR',   regex: /^[+\-*/=]/ },
+        { type: 'DELIMITER',  regex: /^[(){};,]/ },
+        { type: 'SKIP',       regex: /^[ \t\n\r]+/ },
+        { type: 'MISMATCH',   regex: /^./ }
+    ];
+
+    const inputCodigo = document.getElementById('inputCodigo');
+    const tablaTokens = document.getElementById('tablaTokens');
+
+    inputCodigo.addEventListener('input', () => {
+        let codigo = inputCodigo.value;
+        
+        if (codigo.trim() === "") {
+            tablaTokens.innerHTML = `<tr><td colspan="2" style="text-align: center; color: #94a3b8; padding-top: 110px; font-weight: 500;">Esperando código fuente...</td></tr>`;
+            return;
+        }
+
+        let htmlResultado = "";
+        let posicion = 0;
+
+        while (posicion < codigo.length) {
+            let substringActual = codigo.substring(posicion);
+            let coincidenciaEncontrada = false;
+
+            for (const rule of TOKEN_RULES) {
+                const match = substringActual.match(rule.regex);
+
+                if (match) {
+                    const valor = match[0];
+                    posicion += valor.length;
+                    coincidenciaEncontrada = true;
+
+                    if (rule.type === 'SKIP') break;
+
+                    if (rule.type === 'MISMATCH') {
+                        htmlResultado += `<tr class="row-error">
+                            <td><span class="badge-text">❌ ERROR</span></td>
+                            <td>Carácter inválido: '${valor}'</td>
+                        </tr>`;
+                    } else {
+                        const rowClass = `row-${rule.type.toLowerCase()}`;
+                        htmlResultado += `<tr class="${rowClass}">
+                            <td><span class="badge-text">${rule.type}</span></td>
+                            <td><code>${escaparHTML(valor)}</code></td>
+                        </tr>`;
+                    }
+                    break;
+                }
+            }
+        }
+
+        tablaTokens.innerHTML = htmlResultado;
+    });
+
+    function escaparHTML(string) {
+        return string.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+</script>
+
+</body>
+</html>
